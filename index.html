@@ -52,7 +52,8 @@
   </div>
 
 <script>
-  const API = "http://localhost:3000";
+  // Use the same origin as the deployed backend
+  const API = "";
 
   async function loadLinks() {
     const res = await fetch(API + "/api/links");
@@ -63,9 +64,9 @@
       html += `
         <tr>
           <td class="p-2 border text-blue-600">
-            <a href="${API}/${link.code}" target="_blank">${link.code}</a>
+            <a href="/${link.code}" target="_blank">${link.code}</a>
           </td>
-          <td class="p-2 border">${link.url}</td>
+          <td class="p-2 border break-all">${link.url}</td>
           <td class="p-2 border">${link.clicks}</td>
           <td class="p-2 border">${link.last_clicked || "-"}</td>
           <td class="p-2 border">
@@ -108,6 +109,9 @@
       msg.classList.add("text-red-600");
     } else if (res.status === 400) {
       msg.innerHTML = "Missing fields!";
+      msg.classList.add("text-red-600");
+    } else if (!res.ok) {
+      msg.innerHTML = "Something went wrong!";
       msg.classList.add("text-red-600");
     } else {
       msg.innerHTML = "Short link created successfully!";
