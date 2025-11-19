@@ -16,17 +16,24 @@
   </div>
 
 <script>
-  const API = "http://localhost:3000";
+  // Same origin as backend
+  const API = "";
 
   async function loadStats() {
     const parts = window.location.pathname.split("/");
-    const code = parts[2];   // "/code/yt1234"
+    const code = parts[2];   // "/code/yt1234" -> "yt1234"
 
-    const res = await fetch(`${API}/api/links/${code}`);
+    const res = await fetch(${API}/api/links/${code});
 
     if (res.status === 404) {
       document.getElementById("content").innerHTML =
-        `<p class="text-red-600 font-semibold">Short link not found!</p>`;
+        <p class="text-red-600 font-semibold">Short link not found!</p>;
+      return;
+    }
+
+    if (!res.ok) {
+      document.getElementById("content").innerHTML =
+        <p class="text-red-600 font-semibold">Error loading stats!</p>;
       return;
     }
 
@@ -61,13 +68,13 @@
   }
 
   function copyLink(code) {
-    const shortUrl = `${API}/${code}`;
+    const shortUrl = ${window.location.origin}/${code};
     navigator.clipboard.writeText(shortUrl);
     alert("Copied: " + shortUrl);
   }
 
   async function deleteLink(code) {
-    await fetch(`${API}/api/links/${code}`, { method: "DELETE" });
+    await fetch(${API}/api/links/${code}, { method: "DELETE" });
     alert("Link deleted");
     window.location.href = "/";
   }
