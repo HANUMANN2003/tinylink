@@ -6,21 +6,27 @@ import { fileURLToPath } from "url";
 import sqlite3 from "sqlite3";
 import { open } from "sqlite";
 
+// Convert import.meta.url to __dirname (for ESM)
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const _dirname = path.dirname(_filename);
 
 const app = express();
+
+// Middlewares
 app.use(cors());
 app.use(express.json());
 
+// Serve static files (index.html, stats.html, etc.)
+app.use(express.static(__dirname));
+
 // ======================
-// DATABASE (pure JS sqlite)
+// DATABASE (SQLite)
 // ======================
 let db;
 
-(async () => {
+async function initDb() {
   db = await open({
-    filename: "links.db",
+    filename: path.join(__dirname, "links.db"),
     driver: sqlite3.Database
   });
 
@@ -34,70 +40,126 @@ let db;
   `);
 
   console.log("Database ready");
-})();
+}
 
 // ======================
+// ROUTES
+// ======================
+
+// Health check
 app.get("/healthz", (req, res) => {
   res.json({ ok: true, version: "1.0" });
 });
 
+// Dashboard page
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+
+// Stats page
+app.get("/code/:code", (req, res) => {
+  res.sendFile(path.join(__dirname, "stats.html"));
+});
+
 // Create short link
 app.post("/api/links", async (req, res) => {
-  const { url, code } = req.body;
-
-  if (!url || !code) return res.status(400).json({ error: "Missing fields" });
-
   try {
+    const { url, code } = req.body;
+
+    if (!url || !code) {
+      return res.status(400).json({ error: "Missing fields" });
+    }
+
     await db.run(
       "INSERT INTO links (code, url) VALUES (?, ?)",
       code,
       url
     );
+
     res.json({ ok: true });
-  } catch {
-    res.status(409).json({ error: "Code exists" });
+  } catch (error) {
+    console.error("Error inserting link:", error);
+    // Unique key error (code already exists)
+    if (error && error.code === "SQLITE_CONSTRAINT_PRIMARYKEY") {
+      return res.status(409).json({ error: "Code exists" });
+    }
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
 // List all links
 app.get("/api/links", async (req, res) => {
-  const rows = await db.all("SELECT * FROM links");
-  res.json(rows);
+  try {
+    const rows = await db.all("SELECT * FROM links ORDER BY rowid DESC");
+    res.json(rows);
+  } catch (error) {
+    console.error("Error listing links:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
-// Get one link
+// Get one link details
 app.get("/api/links/:code", async (req, res) => {
-  const row = await db.get("SELECT * FROM links WHERE code = ?", req.params.code);
-  if (!row) return res.status(404).json({ error: "Not found" });
-  res.json(row);
+  try {
+    const row = await db.get("SELECT * FROM links WHERE code = ?", req.params.code);
+    if (!row) return res.status(404).json({ error: "Not found" });
+    res.json(row);
+  } catch (error) {
+    console.error("Error fetching link:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
-// Delete
+// Delete link
 app.delete("/api/links/:code", async (req, res) => {
-  await db.run("DELETE FROM links WHERE code = ?", req.params.code);
-  res.json({ ok: true });
+  try {
+    await db.run("DELETE FROM links WHERE code = ?", req.params.code);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("Error deleting link:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
-// Stats page (before redirect)
-app.get("/code/:code", (req, res) => {
-  res.sendFile(path.join(__dirname, "stats.html"));
-});
-
-// Redirect
+// Redirect (this MUST be last so it doesn't catch other routes)
 app.get("/:code", async (req, res) => {
-  const row = await db.get("SELECT * FROM links WHERE code = ?", req.params.code);
+  try {
+    const row = await db.get("SELECT * FROM links WHERE code = ?", req.params.code);
 
-  if (!row) return res.status(404).send("Not found");
+    if (!row) return res.status(404).send("Not found");
 
-  await db.run(
-    `UPDATE links 
-     SET clicks = clicks + 1, last_clicked = datetime('now')
-     WHERE code = ?`,
-    req.params.code
-  );
+    await db.run(
+      `
+        UPDATE links 
+        SET clicks = clicks + 1, last_clicked = datetime('now')
+        WHERE code = ?
+      `,
+      req.params.code
+    );
 
-  res.redirect(302, row.url);
+    res.redirect(302, row.url);
+  } catch (error) {
+    console.error("Error redirecting:", error);
+    res.status(500).send("Internal server error");
+  }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Running on " + PORT));
+// ======================
+// START SERVER
+// ======================
+
+async function start() {
+  try {
+    await initDb();
+
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+      console.log(TinyLink server running on port ${PORT});
+    });
+  } catch (err) {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+  }
+}
+
+start();
