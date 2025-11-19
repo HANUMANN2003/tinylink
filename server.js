@@ -1,48 +1,45 @@
-import express from 'express';
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
-import cors from 'cors';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import express from "express";
+import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
+import Database from "better-sqlite3";
 
-const app = express();
-app.use(express.json());
-app.use(cors());
-
-// Fix __dirname for ES modules
+// Required for __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Serve dashboard
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-// Database setup
-let db;
-(async () => {
-  db = await open({
-    filename: 'links.db',
-    driver: sqlite3.Database
-  });
+// ======================
+// DATABASE (better-sqlite3)
+// ======================
+const db = new Database("links.db");
 
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS links (
-      code TEXT PRIMARY KEY,
-      url TEXT NOT NULL,
-      clicks INTEGER DEFAULT 0,
-      last_clicked TEXT
-    )
-  `);
-})();
+// Create table if not exists
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS links(
+    code TEXT PRIMARY KEY,
+    url TEXT NOT NULL,
+    clicks INTEGER DEFAULT 0,
+    last_clicked TEXT
+  )
+`).run();
 
-// Health check
-app.get('/healthz', (req, res) => {
+// ======================
+// HEALTH CHECK
+// ======================
+app.get("/healthz", (req, res) => {
   res.json({ ok: true, version: "1.0" });
 });
 
+// ======================
+// API ROUTES
+// ======================
+
 // Create short link
-app.post('/api/links', async (req, res) => {
+app.post("/api/links", (req, res) => {
   const { url, code } = req.body;
 
   if (!url || !code) {
@@ -50,73 +47,62 @@ app.post('/api/links', async (req, res) => {
   }
 
   try {
-    await db.run(
-      'INSERT INTO links (code, url) VALUES (?, ?)',
-      [code, url]
-    );
-
+    db.prepare("INSERT INTO links (code, url) VALUES (?, ?)").run(code, url);
     res.json({ ok: true });
-  } catch (error) {
+  } catch (e) {
     res.status(409).json({ error: "Code exists" });
   }
 });
 
-// Get all links
-app.get('/api/links', async (req, res) => {
-  const links = await db.all('SELECT * FROM links');
-  res.json(links);
+// List all links
+app.get("/api/links", (req, res) => {
+  const rows = db.prepare("SELECT * FROM links").all();
+  res.json(rows);
 });
 
-// Get single link stats
-app.get('/api/links/:code', async (req, res) => {
-  const link = await db.get(
-    'SELECT * FROM links WHERE code = ?',
-    [req.params.code]
-  );
+// Get single link
+app.get("/api/links/:code", (req, res) => {
+  const code = req.params.code;
+  const row = db.prepare("SELECT * FROM links WHERE code = ?").get(code);
 
-  if (!link) {
-    return res.status(404).json({ error: "Not found" });
-  }
+  if (!row) return res.status(404).json({ error: "Not found" });
 
-  res.json(link);
+  res.json(row);
 });
 
 // Delete a link
-app.delete('/api/links/:code', async (req, res) => {
-  await db.run(
-    'DELETE FROM links WHERE code = ?',
-    [req.params.code]
-  );
-
+app.delete("/api/links/:code", (req, res) => {
+  db.prepare("DELETE FROM links WHERE code = ?").run(req.params.code);
   res.json({ ok: true });
 });
 
-// STATS PAGE ROUTE (IMPORTANT: must be BEFORE redirect)
-app.get('/code/:code', (req, res) => {
-  res.sendFile(path.join(__dirname, 'stats.html'));
+// ======================
+// STATS PAGE (must be before redirect)
+// ======================
+app.get("/code/:code", (req, res) => {
+  res.sendFile(path.join(__dirname, "stats.html"));
 });
 
-// REDIRECT ROUTE (MUST BE LAST)
-app.get('/:code', async (req, res) => {
+// ======================
+// REDIRECT SHORT LINK (must be last)
+// ======================
+app.get("/:code", (req, res) => {
   const code = req.params.code;
 
-  const link = await db.get(
-    'SELECT * FROM links WHERE code = ?',
-    [code]
-  );
+  const row = db.prepare("SELECT * FROM links WHERE code = ?").get(code);
+  if (!row) return res.status(404).send("Not found");
 
-  if (!link) {
-    return res.status(404).send("Not found");
-  }
+  db.prepare(`
+    UPDATE links 
+    SET clicks = clicks + 1, last_clicked = datetime('now')
+    WHERE code = ?
+  `).run(code);
 
-  await db.run(
-    'UPDATE links SET clicks = clicks + 1, last_clicked = datetime("now") WHERE code = ?',
-    [code]
-  );
-
-  res.redirect(302, link.url);
+  res.redirect(302, row.url);
 });
 
-// Start server
+// ======================
+// START SERVER
+// ======================
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Running on ${PORT}`));
+app.listen(PORT, () => console.log("Running on " + PORT));
