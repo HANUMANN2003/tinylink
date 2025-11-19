@@ -154,7 +154,7 @@ async function start() {
 
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => {
-      console.log(TinyLink server running on port ${PORT});
+      console.log("TinyLink server running on port " + PORT);
     });
   } catch (err) {
     console.error("Failed to start server:", err);
