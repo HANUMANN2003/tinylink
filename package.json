@@ -1,8 +1,7 @@
 {
   "name": "tinylink",
   "version": "1.0.0",
-<<<<<<< HEAD
-  "description": "Premium URL shortener with analytics dashboard",
+  "description": "Premium URL shortener with analytics and redirect",
   "main": "server.js",
   "type": "module",
 
@@ -14,23 +13,9 @@
     "node": "18.x"
   },
 
-=======
-  "type": "module",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "engines": {
-    "node": "18.x"
-  },
->>>>>>> ea8a281161dde4123aeb594f36297d94cb0f2f4c
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.18.2",
-    "sqlite": "^4.2.1",
-<<<<<<< HEAD
     "sqlite3": "^5.1.6"
-=======
-    "sqlite3": "^5.1.7"
->>>>>>> ea8a281161dde4123aeb594f36297d94cb0f2f4c
   }
 }
