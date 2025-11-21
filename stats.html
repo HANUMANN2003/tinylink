@@ -1,120 +1,8 @@
-<<<<<<< HEAD
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>TinyLink — Stats</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <style>
-    .card { background: white; border-radius: 12px; box-shadow: 0 6px 30px rgba(20,20,40,0.06); }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; }
-    #timelineWrap { height: 200px; }
-  </style>
-</head>
-<body class="bg-gray-50 p-6">
-  <div class="max-w-3xl mx-auto">
-    <header class="mb-6 flex items-center justify-between">
-      <h1 class="text-2xl font-semibold">TinyLink — Stats</h1>
-      <a href="/" class="text-sm text-indigo-600">Back to Dashboard</a>
-    </header>
-
-    <div class="card p-6">
-      <div id="loading" class="text-gray-500">Loading…</div>
-
-      <div id="content" style="display:none">
-        <h2 id="codeTitle" class="text-xl font-semibold mb-2"></h2>
-        <p id="targetUrl" class="text-sm text-gray-600"></p>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-          <div class="p-4 border rounded">
-            <div class="text-xs text-gray-500">Clicks</div>
-            <div id="clicks" class="text-2xl font-bold">0</div>
-          </div>
-          <div class="p-4 border rounded">
-            <div class="text-xs text-gray-500">Last Clicked</div>
-            <div id="lastClicked" class="text-sm">-</div>
-          </div>
-          <div class="p-4 border rounded">
-            <div class="text-xs text-gray-500">Short URL</div>
-            <div class="flex items-center gap-2">
-              <input id="shortInput" class="border p-2 rounded flex-1 mono text-sm" readonly />
-              <button onclick="copyCurrent()" class="bg-indigo-600 text-white px-3 py-1 rounded">Copy</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="mt-6">
-          <h3 class="text-sm text-gray-700">Clicks Timeline (overview)</h3>
-          <div id="timelineWrap" class="mt-3"><canvas id="timeline"></canvas></div>
-        </div>
-
-        <div class="mt-6 flex gap-2 items-center">
-          <button onclick="shareCurrent()" class="bg-green-600 text-white px-4 py-2 rounded">Share</button>
-          <button onclick="deleteCurrent()" class="bg-red-600 text-white px-4 py-2 rounded">Delete</button>
-          <div id="qr" class="ml-auto"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-<script>
-const BASE = window.location.origin;
-let currentCode = null;
-let currentLink = null;
-
-function codeFromPath(){ return location.pathname.split('/')[2] || ''; }
-
-async function loadStats(){
-  const code = codeFromPath();
-  currentCode = code;
-  try{
-    const res = await fetch(BASE + '/api/links/' + code);
-    if(res.status===404){ document.getElementById('loading').innerText = 'Short link not found'; return; }
-    currentLink = await res.json();
-    document.getElementById('loading').style.display='none';
-    document.getElementById('content').style.display='block';
-
-    document.getElementById('codeTitle').innerText = currentLink.code;
-    document.getElementById('targetUrl').innerHTML = `<a href="${currentLink.url}" target="_blank" class="text-indigo-600 underline">${currentLink.url}</a>`;
-    document.getElementById('clicks').innerText = currentLink.clicks || 0;
-    document.getElementById('lastClicked').innerText = currentLink.last_clicked || '-';
-    document.getElementById('shortInput').value = BASE + '/' + currentLink.code;
-
-    renderQR(BASE + '/' + currentLink.code);
-    renderTimeline(); // simple static overview using clicks value
-  }catch(e){
-    document.getElementById('loading').innerText = 'Error loading stats';
-  }
-}
-
-function renderQR(url){
-  const node = document.getElementById('qr'); node.innerHTML = '';
-  new QRCode(node, { text: url, width: 110, height: 110 });
-}
-
-function copyCurrent(){ const url = document.getElementById('shortInput').value; navigator.clipboard.writeText(url).then(()=> alert('Copied: ' + url)); }
-function shareCurrent(){ const url = document.getElementById('shortInput').value; if(navigator.share) navigator.share({ title: 'TinyLink: ' + currentCode, text:url, url}); else navigator.clipboard.writeText(url).then(()=> alert('Copied')); }
-async function deleteCurrent(){ if(!confirm('Delete this link?')) return; await fetch(BASE + '/api/links/' + currentCode, { method:'DELETE' }); alert('Deleted'); location.href = '/'; }
-
-/* timeline: very small overview based on single value (clicks) - stable chart */
-function renderTimeline(){
-  const ctx = document.getElementById('timeline').getContext('2d');
-  const labels = ['Now'];
-  const data = [ currentLink.clicks || 0 ];
-  new Chart(ctx, { type:'line', data:{ labels, datasets:[{ label:'Clicks', data, borderColor:'#10b981', backgroundColor:'#10b981', fill:false }]}, options:{ animation:{ duration:0 }, responsive:true, maintainAspectRatio:false }});
-}
-
-loadStats();
-</script>
-=======
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>TinyLink - Stats</title>
+  <title>TinyLink — Stats</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
@@ -122,78 +10,60 @@ loadStats();
 
   <div class="max-w-xl mx-auto bg-white p-6 rounded-xl shadow">
 
-    <h1 class="text-2xl font-bold mb-4 text-center">TinyLink Stats</h1>
+    <h1 class="text-2xl font-bold mb-4 text-center text-purple-700">TinyLink Stats</h1>
 
     <div id="content" class="text-center text-lg">Loading...</div>
   </div>
 
 <script>
-  // Same origin as backend
-  const API = "";
+const API = "";
 
-  async function loadStats() {
-    const parts = window.location.pathname.split("/");
-    const code = parts[2];   // "/code/yt1234" -> "yt1234"
+async function loadStats() {
+  const parts = window.location.pathname.split("/");
+  const code = parts[2];
 
-    const res = await fetch(${API}/api/links/${code});
+  const res = await fetch(`/api/links/${code}`);
 
-    if (res.status === 404) {
-      document.getElementById("content").innerHTML =
-        <p class="text-red-600 font-semibold">Short link not found!</p>;
-      return;
-    }
-
-    if (!res.ok) {
-      document.getElementById("content").innerHTML =
-        <p class="text-red-600 font-semibold">Error loading stats!</p>;
-      return;
-    }
-
-    const link = await res.json();
-
-    document.getElementById("content").innerHTML = `
-      <div class="space-y-4">
-
-        <p><strong>Code:</strong> <span class="text-blue-600">${link.code}</span></p>
-        <p><strong>Target URL:</strong> <a href="${link.url}" class="text-blue-600 underline" target="_blank">${link.url}</a></p>
-        <p><strong>Total Clicks:</strong> ${link.clicks}</p>
-        <p><strong>Last Clicked:</strong> ${link.last_clicked || "-"}</p>
-
-        <div class="space-y-2">
-          <button onclick="copyLink('${link.code}')"
-            class="bg-blue-600 text-white w-full py-2 rounded hover:bg-blue-700">
-            Copy Short Link
-          </button>
-
-          <button onclick="deleteLink('${link.code}')"
-            class="bg-red-600 text-white w-full py-2 rounded hover:bg-red-700">
-            Delete Link
-          </button>
-
-          <a href="/" class="block text-center bg-gray-400 text-white py-2 rounded hover:bg-gray-500">
-            Back to Dashboard
-          </a>
-        </div>
-
-      </div>
-    `;
+  if (res.status === 404) {
+    content.innerHTML = `<p class="text-red-600">Short link not found!</p>`;
+    return;
   }
 
-  function copyLink(code) {
-    const shortUrl = ${window.location.origin}/${code};
-    navigator.clipboard.writeText(shortUrl);
-    alert("Copied: " + shortUrl);
-  }
+  const link = await res.json();
 
-  async function deleteLink(code) {
-    await fetch(${API}/api/links/${code}, { method: "DELETE" });
-    alert("Link deleted");
-    window.location.href = "/";
-  }
+  const shortUrl = `${window.location.origin}/${code}`;
 
-  loadStats();
+  content.innerHTML = `
+    <div class="space-y-4">
+
+      <p><strong>Code:</strong> <span class="text-purple-700">${link.code}</span></p>
+      <p><strong>Target:</strong> <a href="${link.url}" class="text-purple-700 underline" target="_blank">${link.url}</a></p>
+      <p><strong>Total Clicks:</strong> ${link.clicks}</p>
+      <p><strong>Last Clicked:</strong> ${link.last_clicked || "-"}</p>
+
+      <button onclick="copyLink('${code}')" 
+        class="bg-black text-white w-full py-2 rounded">Copy Link</button>
+
+      <button onclick="deleteLink('${code}')" 
+        class="bg-red-600 text-white w-full py-2 rounded">Delete Link</button>
+
+      <a href="/" class="block text-center bg-gray-400 text-white py-2 rounded">Back to Dashboard</a>
+    </div>
+  `;
+}
+
+function copyLink(code) {
+  navigator.clipboard.writeText(window.location.origin + "/" + code);
+  alert("Copied!");
+}
+
+async function deleteLink(code) {
+  await fetch(`/api/links/${code}`, { method: "DELETE" });
+  window.location.href = "/";
+}
+
+loadStats();
 </script>
 
->>>>>>> ea8a281161dde4123aeb594f36297d94cb0f2f4c
 </body>
 </html>

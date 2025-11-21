@@ -1,409 +1,243 @@
-<<<<<<< HEAD
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>TinyLink — Premium Dashboard</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- QRCode lib -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
-  <style>
-    .card { background: #fff; border-radius: 12px; box-shadow: 0 6px 30px rgba(20,20,40,0.06); }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; }
-    /* fix chart area height to avoid layout jumps */
-    #chartWrap { height: 240px; }
-  </style>
-</head>
-<body class="bg-gradient-to-b from-gray-50 to-gray-100 min-h-screen p-6">
-  <div class="max-w-6xl mx-auto">
-    <header class="mb-6 flex items-center justify-between">
-      <h1 class="text-2xl font-bold">TinyLink <span class="text-indigo-600">Premium</span></h1>
-      <div class="text-sm text-gray-600">Status: <span id="serverStatus" class="font-semibold">checking...</span></div>
-    </header>
-
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Left panel -->
-      <section class="card p-6 lg:col-span-1">
-        <h2 class="text-lg font-semibold mb-2">Create Short Link</h2>
-
-        <label class="text-xs text-gray-500">Long URL</label>
-        <input id="urlInput" placeholder="https://example.com/page" class="mt-1 w-full border rounded p-2" />
-
-        <label class="text-xs text-gray-500 mt-3">Custom code (optional)</label>
-        <input id="codeInput" placeholder="example: mycode" class="mt-1 w-full border rounded p-2" />
-
-        <div class="flex gap-2 mt-4">
-          <button id="createBtn" onclick="createLink()" class="flex-1 bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700">Create</button>
-          <button onclick="generateRandomCode()" class="bg-gray-100 px-3 rounded">Random</button>
-        </div>
-
-        <p id="formMsg" class="mt-3 text-sm"></p>
-
-        <div class="mt-6">
-          <h3 class="text-sm text-gray-500">Quick actions</h3>
-          <div class="flex gap-2 mt-2">
-            <button onclick="loadLinks()" class="text-sm bg-gray-100 px-3 py-1 rounded">Refresh</button>
-            <button onclick="openCreateStats()" class="text-sm bg-gray-100 px-3 py-1 rounded">Open Latest Stats</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- Right panel -->
-      <section class="card p-6 lg:col-span-2">
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="text-lg font-semibold">All Short Links</h2>
-          <div class="text-sm text-gray-500">Total: <span id="totalLinks">0</span></div>
-        </div>
-
-        <div class="overflow-x-auto">
-          <table class="w-full">
-            <thead class="bg-gray-50">
-              <tr class="text-left text-sm text-gray-600">
-                <th class="p-2">Short</th>
-                <th class="p-2">Target</th>
-                <th class="p-2">Clicks</th>
-                <th class="p-2">Last Clicked</th>
-                <th class="p-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="linksTable" class="divide-y"></tbody>
-          </table>
-        </div>
-
-        <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="p-4 border rounded">
-            <h3 class="text-sm font-medium text-gray-700">Top Links (Clicks)</h3>
-            <div id="chartWrap" class="mt-3">
-              <canvas id="topChart" style="width:100%; height:100%;"></canvas>
-            </div>
-          </div>
-
-          <div class="p-4 border rounded">
-            <h3 class="text-sm font-medium text-gray-700">Preview</h3>
-            <div id="previewBox" class="mt-3 text-sm text-gray-600">Select a row to preview short link, QR, and actions.</div>
-          </div>
-        </div>
-
-      </section>
-    </div>
-
-    <footer class="mt-6 text-xs text-gray-500 text-center">
-      Deployed: <span id="deployedAt">local</span> • Assignment doc: 
-      <a class="underline text-indigo-600" href="/mnt/data/Take-Home Assignment_ TinyLink (1) (2).pdf" target="_blank">Assignment PDF</a>
-    </footer>
-  </div>
-
-<script>
-/* ---------- config ---------- */
-const API_BASE = window.location.origin;
-const SHORT_PREFIX = API_BASE + '/';
-
-/* ---------- utils ---------- */
-function el(tag, attrs = {}, ...children) {
-  const e = document.createElement(tag);
-  for (const k in attrs) {
-    if (k === 'class') e.className = attrs[k];
-    else e.setAttribute(k, attrs[k]);
-  }
-  for (const c of children) if (c) e.append(typeof c === 'string' ? document.createTextNode(c) : c);
-  return e;
-}
-function toast(msg){ const t = el('div',{class:'fixed right-6 bottom-6 bg-black text-white px-4 py-2 rounded shadow'}, document.createTextNode(msg)); document.body.appendChild(t); setTimeout(()=>t.remove(),2400); }
-
-/* ---------- server health ---------- */
-async function checkServer(){
-  try{
-    const r = await fetch(API_BASE + '/healthz');
-    if(r.ok){ document.getElementById('serverStatus').innerText='online'; document.getElementById('deployedAt').innerText = API_BASE; }
-    else document.getElementById('serverStatus').innerText='unreachable';
-  }catch(e){ document.getElementById('serverStatus').innerText='offline'; }
-}
-
-/* ---------- create link ---------- */
-function generateRandomCode(){ document.getElementById('codeInput').value = Math.random().toString(36).slice(2,8); }
-async function createLink(){
-  const url = document.getElementById('urlInput').value.trim();
-  let code = document.getElementById('codeInput').value.trim();
-  const msg = document.getElementById('formMsg');
-  msg.innerText=''; msg.className='mt-3 text-sm';
-  if(!url){ msg.innerText='Enter a URL'; msg.classList.add('text-red-600'); return; }
-  if(!code) code = Math.random().toString(36).slice(2,8);
-  document.getElementById('createBtn').disabled = true;
-  try{
-    const r = await fetch(API_BASE + '/api/links',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url, code }) });
-    if(r.status===409){ msg.innerText='Code exists'; msg.classList.add('text-red-600'); }
-    else if(!r.ok){ msg.innerText='Server error'; msg.classList.add('text-red-600'); }
-    else { msg.innerText='Created ✓'; msg.classList.add('text-green-600'); document.getElementById('urlInput').value=''; document.getElementById('codeInput').value=''; await loadLinks(); }
-  }catch(e){ msg.innerText='Network error'; msg.classList.add('text-red-600'); }
-  finally{ document.getElementById('createBtn').disabled = false; }
-}
-
-/* ---------- load & render ---------- */
-let allLinks = [];
-let topChart = null;
-
-async function loadLinks(){
-  try{
-    const res = await fetch(API_BASE + '/api/links');
-    allLinks = await res.json();
-    renderTable(allLinks);
-    renderChart(allLinks);
-    document.getElementById('totalLinks').innerText = allLinks.length;
-  }catch(e){
-    console.error(e);
-  }
-}
-
-function renderTable(rows){
-  const tbody = document.getElementById('linksTable');
-  tbody.innerHTML = '';
-  if(!rows || rows.length===0){ tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-gray-500">No links yet</td></tr>'; return; }
-  for(const r of rows){
-    const tr = el('tr', { class: 'hover:bg-gray-50' });
-    const a = el('a', { href: SHORT_PREFIX + r.code, target: '_blank', class: 'text-indigo-600 underline' }, document.createTextNode(r.code));
-    tr.append(
-      el('td',{class:'p-2'}, a),
-      el('td',{class:'p-2 break-all text-sm'}, document.createTextNode(r.url)),
-      el('td',{class:'p-2 mono'}, document.createTextNode(String(r.clicks || 0))),
-      el('td',{class:'p-2 text-sm'}, document.createTextNode(r.last_clicked || '-'))
-    );
-
-    // actions
-    const actions = el('td',{class:'p-2'});
-    const copyBtn = el('button',{class:'text-sm bg-gray-800 text-white px-2 py-1 rounded mr-2'}, document.createTextNode('Copy'));
-    copyBtn.onclick = ()=> { copyShortLink(r.code); showPreview(r.code); };
-    const shareBtn = el('button',{class:'text-sm bg-green-600 text-white px-2 py-1 rounded mr-2'}, document.createTextNode('Share'));
-    shareBtn.onclick = ()=> { shareShortLink(r.code); };
-    const statsBtn = el('button',{class:'text-sm bg-indigo-600 text-white px-2 py-1 rounded mr-2'}, document.createTextNode('Stats'));
-    statsBtn.onclick = ()=> { window.location.href = '/code/' + r.code; };
-    const delBtn = el('button',{class:'text-sm bg-red-600 text-white px-2 py-1 rounded'}, document.createTextNode('Delete'));
-    delBtn.onclick = async ()=> { if(confirm('Delete ' + r.code + '?')){ await deleteLink(r.code); } };
-
-    actions.append(copyBtn, shareBtn, statsBtn, delBtn);
-    tr.appendChild(actions);
-    tbody.appendChild(tr);
-  }
-}
-
-/* ---------- copy / share / delete ---------- */
-function copyShortLink(code){
-  const url = SHORT_PREFIX + code;
-  navigator.clipboard.writeText(url).then(()=> { toast('Copied: ' + url); }).catch(()=> { prompt('Copy this link:', url); });
-}
-
-function shareShortLink(code){
-  const url = SHORT_PREFIX + code;
-  if(navigator.share){ navigator.share({ title: 'TinyLink: ' + code, text: url, url }).catch(()=> navigator.clipboard.writeText(url).then(()=> toast('Copied to clipboard'))); }
-  else navigator.clipboard.writeText(url).then(()=> toast('Copied to clipboard'));
-}
-
-async function deleteLink(code){
-  await fetch(API_BASE + '/api/links/' + code, { method: 'DELETE' });
-  toast('Deleted ' + code);
-  await loadLinks();
-}
-
-/* ---------- preview + QR ---------- */
-function showPreview(code){
-  const link = allLinks.find(x=>x.code===code);
-  const container = document.getElementById('previewBox');
-  container.innerHTML = '';
-  if(!link){ container.innerText = 'Not found'; return; }
-  const shortP = el('p',{}, document.createTextNode('Short: '));
-  const a = el('a',{href: SHORT_PREFIX + code, target:'_blank', class:'text-indigo-600 underline'}, document.createTextNode(SHORT_PREFIX + code));
-  shortP.appendChild(a);
-
-  const qrWrap = el('div',{class:'mt-3 flex items-center gap-4'});
-  const qrDiv = el('div');
-  const info = el('div',{class:'text-sm text-gray-600'});
-  info.append(el('div',{},document.createTextNode('Target: ' + link.url)));
-  info.append(el('div',{},document.createTextNode('Clicks: ' + (link.clicks||0))));
-  qrWrap.append(qrDiv, info);
-  container.append(shortP, qrWrap);
-
-  qrDiv.innerHTML = '';
-  new QRCode(qrDiv, { text: SHORT_PREFIX + code, width: 110, height: 110, colorDark: "#111827", colorLight: "#ffffff" });
-}
-
-/* ---------- stable chart (line) ---------- */
-function renderChart(rows){
-  const ctx = document.getElementById('topChart').getContext('2d');
-  // data = top 8 by clicks
-  const top = [...rows].sort((a,b)=> (b.clicks||0)-(a.clicks||0)).slice(0,8);
-  const labels = top.map(r=> r.code);
-  const values = top.map(r=> r.clicks || 0);
-
-  const dataset = { label: 'Clicks', data: values, fill:false, borderColor:'#4f46e5', backgroundColor:'#4f46e5', tension:0.3 };
-
-  if(topChart){ // update existing chart without re-creating DOM
-    topChart.data.labels = labels;
-    topChart.data.datasets[0].data = values;
-    topChart.update();
-    return;
-  }
-
-  topChart = new Chart(ctx, {
-    type: 'line',
-    data: { labels, datasets: [dataset] },
-    options: {
-      animation: { duration: 0 },
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        y: { beginAtZero:true, ticks:{stepSize:1} }
-      },
-      plugins: { legend:{ display:false } }
-    }
-  });
-}
-
-/* ---------- tiny helpers ---------- */
-function openCreateStats(){ if(allLinks.length) window.location.href = '/code/' + allLinks[0].code; else toast('No links yet'); }
-
-/* ---------- init ---------- */
-checkServer();
-loadLinks();
-</script>
-=======
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>TinyLink Dashboard</title>
+  <title>TinyLink — Premium Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
-<body class="bg-gray-100 p-6">
+<body class="bg-gray-50">
 
-  <div class="max-w-3xl mx-auto bg-white p-6 rounded-xl shadow">
-    <h1 class="text-3xl font-bold mb-4 text-center">TinyLink Dashboard</h1>
+  <!-- HEADER -->
+  <header class="bg-white shadow p-4 flex justify-between items-center">
+    <h1 class="text-3xl font-bold text-purple-700">TinyLink <span class="text-gray-700">Premium</span></h1>
+    <span class="text-green-600 font-semibold">Status: online</span>
+  </header>
 
-    <!-- Add Link Form -->
-    <div class="mb-6">
+  <!-- MAIN GRID -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
+
+    <!-- LEFT SIDE: Create Link -->
+    <div class="bg-white p-6 rounded-xl shadow space-y-4">
       <h2 class="text-xl font-semibold mb-2">Create Short Link</h2>
-      <div class="grid grid-cols-1 gap-3">
 
-        <input id="urlInput" type="text" placeholder="Enter long URL"
-          class="border p-3 rounded w-full">
+      <input id="urlInput" 
+        class="border p-3 rounded w-full"
+        placeholder="https://example.com/page">
 
-        <input id="codeInput" type="text" placeholder="Custom code (example: yt1234)"
-          class="border p-3 rounded w-full">
+      <input id="codeInput" 
+        class="border p-3 rounded w-full"
+        placeholder="Custom code (optional)">
 
-        <button onclick="createLink()"
-          class="bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
-          Create Link
+      <div class="flex gap-3">
+        <button onclick="createLink()" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 w-full">
+          Create
         </button>
 
+        <button onclick="randomCode()" class="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">
+          Random
+        </button>
       </div>
-      <p id="msg" class="mt-2 text-sm"></p>
+
+      <p id="msg" class="text-sm"></p>
+
+      <div class="flex gap-3 mt-3">
+        <button onclick="loadLinks()" class="border px-3 py-2 rounded">Refresh</button>
+        <button onclick="openStatsPage()" class="border px-3 py-2 rounded">Open Latest Stats</button>
+      </div>
     </div>
 
-    <hr class="my-6">
+    <!-- RIGHT SIDE: List + Chart + Preview -->
+    <div class="lg:col-span-2 space-y-6">
 
-    <!-- Links Table -->
-    <h2 class="text-xl font-semibold mb-3">All Short Links</h2>
+      <!-- LINKS TABLE -->
+      <div class="bg-white p-6 rounded-xl shadow">
+        <div class="flex justify-between mb-3">
+          <h2 class="text-xl font-semibold">All Short Links</h2>
+          <span id="total" class="text-sm text-gray-600"></span>
+        </div>
 
-    <table class="w-full border">
-      <thead class="bg-gray-200">
-        <tr>
-          <th class="p-2 border">Code</th>
-          <th class="p-2 border">Target URL</th>
-          <th class="p-2 border">Clicks</th>
-          <th class="p-2 border">Last Clicked</th>
-          <th class="p-2 border">Actions</th>
-        </tr>
-      </thead>
-      <tbody id="linksTable"></tbody>
-    </table>
+        <table class="w-full text-sm">
+          <thead class="bg-gray-200">
+            <tr>
+              <th class="p-2">Short</th>
+              <th class="p-2">Target</th>
+              <th class="p-2">Clicks</th>
+              <th class="p-2">Last</th>
+              <th class="p-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="linksTable"></tbody>
+        </table>
+      </div>
 
+      <!-- GRAPH + PREVIEW -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- CHART -->
+        <div class="bg-white p-6 rounded-xl shadow">
+          <h2 class="font-semibold mb-3">Top Links (Clicks)</h2>
+          <canvas id="chart"></canvas>
+        </div>
+
+        <!-- PREVIEW -->
+        <div class="bg-white p-6 rounded-xl shadow">
+          <h2 class="font-semibold mb-3">Preview</h2>
+          <div id="preview" class="text-gray-500">Select a row to preview short link, QR, and actions.</div>
+        </div>
+
+      </div>
+
+    </div>
   </div>
 
 <script>
-  // Use the same origin as the deployed backend
-  const API = "";
+const API = "";
 
-  async function loadLinks() {
-    const res = await fetch(API + "/api/links");
-    const data = await res.json();
+// =========================
+// CREATE RANDOM CODE
+// =========================
+function randomCode() {
+  document.getElementById("codeInput").value = Math.random().toString(36).substring(2, 8);
+}
 
-    let html = "";
-    data.forEach(link => {
-      html += `
-        <tr>
-          <td class="p-2 border text-blue-600">
-            <a href="/${link.code}" target="_blank">${link.code}</a>
-          </td>
-          <td class="p-2 border break-all">${link.url}</td>
-          <td class="p-2 border">${link.clicks}</td>
-          <td class="p-2 border">${link.last_clicked || "-"}</td>
-          <td class="p-2 border">
-            <button onclick="deleteLink('${link.code}')"
-              class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700">
-              Delete
-            </button>
-          </td>
-        </tr>
-      `;
-    });
+// =========================
+// CREATE NEW LINK
+// =========================
+async function createLink() {
+  const url = urlInput.value.trim();
+  const code = codeInput.value.trim() || Math.random().toString(36).substring(2, 8);
+  const msg = document.getElementById("msg");
 
-    document.getElementById("linksTable").innerHTML = html;
+  msg.innerHTML = "";
+  msg.className = "text-sm";
+
+  if (!url) {
+    msg.classList.add("text-red-600");
+    msg.innerHTML = "URL required!";
+    return;
   }
 
-  async function createLink() {
-    const url = document.getElementById("urlInput").value.trim();
-    const code = document.getElementById("codeInput").value.trim();
-    const msg = document.getElementById("msg");
+  const res = await fetch("/api/links", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, code })
+  });
 
-    msg.innerHTML = "";
-    msg.classList.remove("text-red-600", "text-green-600");
-
-    if (!url || !code) {
-      msg.innerHTML = "URL and Code are required!";
-      msg.classList.add("text-red-600");
-      return;
-    }
-
-    const res = await fetch(API + "/api/links", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, code })
-    });
-
-    const result = await res.json();
-
-    if (res.status === 409) {
-      msg.innerHTML = "Code already exists!";
-      msg.classList.add("text-red-600");
-    } else if (res.status === 400) {
-      msg.innerHTML = "Missing fields!";
-      msg.classList.add("text-red-600");
-    } else if (!res.ok) {
-      msg.innerHTML = "Something went wrong!";
-      msg.classList.add("text-red-600");
-    } else {
-      msg.innerHTML = "Short link created successfully!";
-      msg.classList.add("text-green-600");
-
-      document.getElementById("urlInput").value = "";
-      document.getElementById("codeInput").value = "";
-      loadLinks();
-    }
+  if (res.status === 409) {
+    msg.classList.add("text-red-600");
+    msg.innerHTML = "Code already exists!";
+    return;
   }
 
-  async function deleteLink(code) {
-    await fetch(API + "/api/links/" + code, { method: "DELETE" });
-    loadLinks();
-  }
+  msg.classList.add("text-green-600");
+  msg.innerHTML = "Short link created!";
+  urlInput.value = "";
+  codeInput.value = "";
 
-  // Load table on page load
   loadLinks();
+}
+
+// =========================
+// LOAD LINKS INTO TABLE
+// =========================
+let chart;
+
+async function loadLinks() {
+  const res = await fetch("/api/links");
+  const data = await res.json();
+
+  total.innerText = "Total: " + data.length;
+  let html = "";
+
+  const labels = [];
+  const clicks = [];
+
+  data.forEach(link => {
+    labels.push(link.code);
+    clicks.push(link.clicks);
+
+    html += `
+      <tr class="border-b hover:bg-gray-50 cursor-pointer" onclick="showPreview('${link.code}', '${link.url}', ${link.clicks})">
+        <td class="p-2 text-purple-700 font-semibold">${link.code}</td>
+        <td class="p-2 break-all">${link.url}</td>
+        <td class="p-2">${link.clicks}</td>
+        <td class="p-2">${link.last_clicked || "-"}</td>
+        <td class="p-2 space-x-1">
+          <button onclick="copyLink('${link.code}'); event.stopPropagation()" class="bg-black text-white px-2 py-1 rounded">Copy</button>
+          <button onclick="shareLink('${link.code}'); event.stopPropagation()" class="bg-green-600 text-white px-2 py-1 rounded">Share</button>
+          <button onclick="openStats('${link.code}'); event.stopPropagation()" class="bg-blue-600 text-white px-2 py-1 rounded">Stats</button>
+          <button onclick="deleteLink('${link.code}'); event.stopPropagation()" class="bg-red-600 text-white px-2 py-1 rounded">Delete</button>
+        </td>
+      </tr>`;
+  });
+
+  linksTable.innerHTML = html;
+
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById("chart"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "Clicks",
+        data: clicks,
+        borderWidth: 2,
+        borderColor: "#6b46c1",
+        tension: 0.3
+      }]
+    }
+  });
+}
+
+// =========================
+// PREVIEW PANEL
+// =========================
+function showPreview(code, url, clicks) {
+  const shortUrl = `${window.location.origin}/${code}`;
+
+  preview.innerHTML = `
+    <p><strong>Short Link:</strong> <a class="text-purple-600 underline" href="${shortUrl}" target="_blank">${shortUrl}</a></p>
+    <p><strong>Target:</strong> ${url}</p>
+    <p><strong>Clicks:</strong> ${clicks}</p>
+
+    <div class="mt-4 space-y-2">
+      <button onclick="copyLink('${code}')" class="bg-black text-white w-full py-2 rounded">Copy</button>
+      <button onclick="shareLink('${code}')" class="bg-green-600 text-white w-full py-2 rounded">Share</button>
+      <button onclick="openStats('${code}')" class="bg-blue-600 text-white w-full py-2 rounded">Stats</button>
+    </div>
+  `;
+}
+
+// =========================
+// BUTTON ACTIONS
+// =========================
+function copyLink(code) {
+  navigator.clipboard.writeText(window.location.origin + "/" + code);
+  alert("Copied!");
+}
+
+function shareLink(code) {
+  navigator.share({ title: "TinyLink", url: window.location.origin + "/" + code });
+}
+
+function openStats(code) {
+  window.location.href = "/code/" + code;
+}
+
+async function deleteLink(code) {
+  await fetch("/api/links/" + code, { method: "DELETE" });
+  loadLinks();
+}
+
+function openStatsPage() {
+  window.location.href = "/code/" + latestCode;
+}
+
+// LOAD ON START
+loadLinks();
 </script>
 
->>>>>>> ea8a281161dde4123aeb594f36297d94cb0f2f4c
 </body>
 </html>
