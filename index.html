@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <!doctype html>
 <html lang="en">
 <head>
@@ -268,5 +269,141 @@ function openCreateStats(){ if(allLinks.length) window.location.href = '/code/' 
 checkServer();
 loadLinks();
 </script>
+=======
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TinyLink Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 p-6">
+
+  <div class="max-w-3xl mx-auto bg-white p-6 rounded-xl shadow">
+    <h1 class="text-3xl font-bold mb-4 text-center">TinyLink Dashboard</h1>
+
+    <!-- Add Link Form -->
+    <div class="mb-6">
+      <h2 class="text-xl font-semibold mb-2">Create Short Link</h2>
+      <div class="grid grid-cols-1 gap-3">
+
+        <input id="urlInput" type="text" placeholder="Enter long URL"
+          class="border p-3 rounded w-full">
+
+        <input id="codeInput" type="text" placeholder="Custom code (example: yt1234)"
+          class="border p-3 rounded w-full">
+
+        <button onclick="createLink()"
+          class="bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
+          Create Link
+        </button>
+
+      </div>
+      <p id="msg" class="mt-2 text-sm"></p>
+    </div>
+
+    <hr class="my-6">
+
+    <!-- Links Table -->
+    <h2 class="text-xl font-semibold mb-3">All Short Links</h2>
+
+    <table class="w-full border">
+      <thead class="bg-gray-200">
+        <tr>
+          <th class="p-2 border">Code</th>
+          <th class="p-2 border">Target URL</th>
+          <th class="p-2 border">Clicks</th>
+          <th class="p-2 border">Last Clicked</th>
+          <th class="p-2 border">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="linksTable"></tbody>
+    </table>
+
+  </div>
+
+<script>
+  // Use the same origin as the deployed backend
+  const API = "";
+
+  async function loadLinks() {
+    const res = await fetch(API + "/api/links");
+    const data = await res.json();
+
+    let html = "";
+    data.forEach(link => {
+      html += `
+        <tr>
+          <td class="p-2 border text-blue-600">
+            <a href="/${link.code}" target="_blank">${link.code}</a>
+          </td>
+          <td class="p-2 border break-all">${link.url}</td>
+          <td class="p-2 border">${link.clicks}</td>
+          <td class="p-2 border">${link.last_clicked || "-"}</td>
+          <td class="p-2 border">
+            <button onclick="deleteLink('${link.code}')"
+              class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700">
+              Delete
+            </button>
+          </td>
+        </tr>
+      `;
+    });
+
+    document.getElementById("linksTable").innerHTML = html;
+  }
+
+  async function createLink() {
+    const url = document.getElementById("urlInput").value.trim();
+    const code = document.getElementById("codeInput").value.trim();
+    const msg = document.getElementById("msg");
+
+    msg.innerHTML = "";
+    msg.classList.remove("text-red-600", "text-green-600");
+
+    if (!url || !code) {
+      msg.innerHTML = "URL and Code are required!";
+      msg.classList.add("text-red-600");
+      return;
+    }
+
+    const res = await fetch(API + "/api/links", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, code })
+    });
+
+    const result = await res.json();
+
+    if (res.status === 409) {
+      msg.innerHTML = "Code already exists!";
+      msg.classList.add("text-red-600");
+    } else if (res.status === 400) {
+      msg.innerHTML = "Missing fields!";
+      msg.classList.add("text-red-600");
+    } else if (!res.ok) {
+      msg.innerHTML = "Something went wrong!";
+      msg.classList.add("text-red-600");
+    } else {
+      msg.innerHTML = "Short link created successfully!";
+      msg.classList.add("text-green-600");
+
+      document.getElementById("urlInput").value = "";
+      document.getElementById("codeInput").value = "";
+      loadLinks();
+    }
+  }
+
+  async function deleteLink(code) {
+    await fetch(API + "/api/links/" + code, { method: "DELETE" });
+    loadLinks();
+  }
+
+  // Load table on page load
+  loadLinks();
+</script>
+
+>>>>>>> ea8a281161dde4123aeb594f36297d94cb0f2f4c
 </body>
 </html>

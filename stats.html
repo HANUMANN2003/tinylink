@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <!doctype html>
 <html lang="en">
 <head>
@@ -108,5 +109,91 @@ function renderTimeline(){
 
 loadStats();
 </script>
+=======
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TinyLink - Stats</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 p-6">
+
+  <div class="max-w-xl mx-auto bg-white p-6 rounded-xl shadow">
+
+    <h1 class="text-2xl font-bold mb-4 text-center">TinyLink Stats</h1>
+
+    <div id="content" class="text-center text-lg">Loading...</div>
+  </div>
+
+<script>
+  // Same origin as backend
+  const API = "";
+
+  async function loadStats() {
+    const parts = window.location.pathname.split("/");
+    const code = parts[2];   // "/code/yt1234" -> "yt1234"
+
+    const res = await fetch(${API}/api/links/${code});
+
+    if (res.status === 404) {
+      document.getElementById("content").innerHTML =
+        <p class="text-red-600 font-semibold">Short link not found!</p>;
+      return;
+    }
+
+    if (!res.ok) {
+      document.getElementById("content").innerHTML =
+        <p class="text-red-600 font-semibold">Error loading stats!</p>;
+      return;
+    }
+
+    const link = await res.json();
+
+    document.getElementById("content").innerHTML = `
+      <div class="space-y-4">
+
+        <p><strong>Code:</strong> <span class="text-blue-600">${link.code}</span></p>
+        <p><strong>Target URL:</strong> <a href="${link.url}" class="text-blue-600 underline" target="_blank">${link.url}</a></p>
+        <p><strong>Total Clicks:</strong> ${link.clicks}</p>
+        <p><strong>Last Clicked:</strong> ${link.last_clicked || "-"}</p>
+
+        <div class="space-y-2">
+          <button onclick="copyLink('${link.code}')"
+            class="bg-blue-600 text-white w-full py-2 rounded hover:bg-blue-700">
+            Copy Short Link
+          </button>
+
+          <button onclick="deleteLink('${link.code}')"
+            class="bg-red-600 text-white w-full py-2 rounded hover:bg-red-700">
+            Delete Link
+          </button>
+
+          <a href="/" class="block text-center bg-gray-400 text-white py-2 rounded hover:bg-gray-500">
+            Back to Dashboard
+          </a>
+        </div>
+
+      </div>
+    `;
+  }
+
+  function copyLink(code) {
+    const shortUrl = ${window.location.origin}/${code};
+    navigator.clipboard.writeText(shortUrl);
+    alert("Copied: " + shortUrl);
+  }
+
+  async function deleteLink(code) {
+    await fetch(${API}/api/links/${code}, { method: "DELETE" });
+    alert("Link deleted");
+    window.location.href = "/";
+  }
+
+  loadStats();
+</script>
+
+>>>>>>> ea8a281161dde4123aeb594f36297d94cb0f2f4c
 </body>
 </html>
